@@ -31,9 +31,11 @@ App SPA sin backend: React 19 + Vite, persistencia en `localStorage`
 
 ## Trucos
 
-- Instrumentar diálogos nativos antes de conducir (si no, bloquean la sesión):
-  `window.confirm = m => { __dialogs.push(m); return __confirmResult ?? true; }`
-  e igual con `alert`.
+- Desde la fase de pulido visual NO hay `alert()`/`confirm()` nativos: las
+  confirmaciones son un modal propio (`[role=dialog]`, botones por texto) y
+  los avisos son toasts (`[role=status]`, se autodescartan a los 5 s).
+- El tema oscuro es la clase `.dark` en `<html>` (persistida en
+  `localStorage.bitacora_theme`); el botón de la barra la conmuta.
 - Los editores de texto son `div[contenteditable]` (componente RichEditor):
   fijar `innerHTML` y despachar `new InputEvent('input', {bubbles:true})`.
 - Para clics confiables sobre un botón sin selector estable: asignarle un `id`

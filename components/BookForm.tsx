@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Book, BookType, BookFormat, ReadingStatus, GeneralData, NovelAnalysis, EssayAnalysis } from '../types';
 import { Save, ArrowLeft, BookOpen, ScrollText, Image as ImageIcon, Search, Loader2, Bold, Italic, List as ListIcon, ChevronRight, ChevronLeft, Upload } from 'lucide-react';
 import { searchBookData } from '../services/bookService';
+import { useFeedback } from './ui/Feedback';
 
 interface BookFormProps {
   initialBook?: Book;
@@ -191,6 +192,7 @@ export const BookForm: React.FC<BookFormProps> = ({ initialBook, onSave, onCance
   );
 
   const [loadingCover, setLoadingCover] = useState(false);
+  const { toast, confirmDialog } = useFeedback();
 
   // Borrador: clave por libro (o 'new' para altas) y snapshot del estado inicial
   const draftKey = DRAFT_KEY_PREFIX + (initialBook?.id || 'new');
@@ -243,7 +245,7 @@ export const BookForm: React.FC<BookFormProps> = ({ initialBook, onSave, onCance
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!general.title.trim()) {
-      alert("El título es obligatorio");
+      toast('El título es obligatorio.', 'error');
       setActiveTab('general');
       return;
     }
@@ -261,11 +263,16 @@ export const BookForm: React.FC<BookFormProps> = ({ initialBook, onSave, onCance
     onSave(newBook);
   };
 
-  const handleCancel = () => {
+  const handleCancel = async () => {
     if (isDirty()) {
-      if (!confirm('Tienes cambios sin guardar. ¿Seguro que quieres salir y descartarlos?')) {
-        return;
-      }
+      const ok = await confirmDialog({
+        title: 'Salir sin guardar',
+        message: 'Tienes cambios sin guardar. ¿Seguro que quieres salir y descartarlos?',
+        confirmLabel: 'Salir sin guardar',
+        cancelLabel: 'Seguir editando',
+        danger: true,
+      });
+      if (!ok) return;
       clearDraft();
     }
     onCancel();
@@ -291,14 +298,14 @@ export const BookForm: React.FC<BookFormProps> = ({ initialBook, onSave, onCance
           author: prev.author.trim() ? prev.author : (result.author || prev.author),
         }));
         if (!result.coverUrl) {
-          alert("No se encontró portada, pero sí el autor del libro.");
+          toast('No se encontró portada, pero sí el autor del libro.', 'info');
         }
       } else {
-        alert("No se encontró el libro en Google Books.");
+        toast('No se encontró el libro en Google Books.', 'info');
       }
     } catch (err) {
       console.error(err);
-      alert("No se pudo consultar Google Books en este momento. Inténtalo de nuevo en unos minutos.");
+      toast('No se pudo consultar Google Books en este momento. Inténtalo de nuevo en unos minutos.', 'error');
     } finally {
       setLoadingCover(false);
     }
@@ -327,7 +334,7 @@ export const BookForm: React.FC<BookFormProps> = ({ initialBook, onSave, onCance
           const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
           setGeneral(prev => ({ ...prev, coverUrl: dataUrl }));
         };
-        img.onerror = () => alert("No se pudo leer la imagen seleccionada.");
+        img.onerror = () => toast('No se pudo leer la imagen seleccionada.', 'error');
         img.src = reader.result as string;
       };
       reader.readAsDataURL(file);
@@ -342,7 +349,8 @@ export const BookForm: React.FC<BookFormProps> = ({ initialBook, onSave, onCance
 
   return (
     <form onSubmit={handleSubmit} onKeyDown={handleFormKeyDown} className="max-w-4xl mx-auto space-y-6 pb-20 animate-fade-in">
-      <div className="flex items-center justify-between sticky top-0 bg-stone-100/95 backdrop-blur-md z-10 p-4 border-b border-stone-200 rounded-b-xl shadow-sm">
+      <div className="sticky top-0 bg-stone-100/95 backdrop-blur-md z-10 p-4 border-b border-stone-200 rounded-b-xl shadow-sm">
+      <div className="flex items-center justify-between">
         <button type="button" onClick={handleCancel} className="text-stone-600 hover:text-stone-800 flex items-center gap-2 transition-colors">
           <ArrowLeft size={20} /> <span className="hidden sm:inline">Cancelar</span>
         </button>
@@ -378,6 +386,20 @@ export const BookForm: React.FC<BookFormProps> = ({ initialBook, onSave, onCance
         >
           <Save size={18} /> <span className="hidden sm:inline">Guardar</span>
         </button>
+      </div>
+
+      {/* Indicador de progreso */}
+      <div className="mt-3 h-1 bg-stone-200 rounded-full overflow-hidden">
+        <div
+          className="h-full bg-stone-600 rounded-full transition-all duration-300"
+          style={{ width: activeTab === 'general' ? '33.3%' : activeTab === 'analysis' ? '66.6%' : '100%' }}
+        />
+      </div>
+      <p className="mt-1.5 text-xs text-stone-500 text-center">
+        Paso {activeTab === 'general' ? 1 : activeTab === 'analysis' ? 2 : 3} de 3
+        {' · '}
+        {activeTab === 'general' ? 'Ficha del libro' : activeTab === 'analysis' ? 'Análisis' : 'Cierre y reflexión'}
+      </p>
       </div>
 
       {/* Draft recovery banner */}

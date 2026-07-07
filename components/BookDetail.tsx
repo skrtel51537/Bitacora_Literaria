@@ -2,6 +2,7 @@ import React from 'react';
 import { Book, getBookStatus } from '../types';
 import { ArrowLeft, Edit2, Trash2, Calendar, CalendarRange, Book as BookIcon, Target, Quote, Lightbulb, Users, Heart, History, Map, Link2 } from 'lucide-react';
 import { sanitizeHtml } from '../services/sanitize';
+import { useFeedback } from './ui/Feedback';
 
 const formatIsoDate = (iso?: string): string | null => {
   if (!iso) return null;
@@ -98,9 +99,18 @@ export const BookDetail: React.FC<BookDetailProps> = ({ book, onBack, onEdit, on
   const mainQuote = getMainQuote(book);
   const otherQuotes = getOtherQuotes(book);
 
-  const handleDelete = () => {
-    if (confirm(`¿Eliminar "${general.title}" de tu biblioteca?\n\nEsta acción no se puede deshacer.`)) {
+  const { confirmDialog, toast } = useFeedback();
+
+  const handleDelete = async () => {
+    const ok = await confirmDialog({
+      title: 'Eliminar lectura',
+      message: `¿Eliminar "${general.title}" de tu biblioteca?\nEsta acción no se puede deshacer.`,
+      confirmLabel: 'Eliminar',
+      danger: true,
+    });
+    if (ok) {
       onDelete(book.id);
+      toast(`"${general.title}" se ha eliminado de la biblioteca.`, 'success');
     }
   };
 
