@@ -1,7 +1,13 @@
 import React from 'react';
-import { Book } from '../types';
-import { ArrowLeft, Edit2, Trash2, Calendar, Book as BookIcon, Target, Quote, Lightbulb, Users, Heart, History, Map, Link2 } from 'lucide-react';
+import { Book, getBookStatus } from '../types';
+import { ArrowLeft, Edit2, Trash2, Calendar, CalendarRange, Book as BookIcon, Target, Quote, Lightbulb, Users, Heart, History, Map, Link2 } from 'lucide-react';
 import { sanitizeHtml } from '../services/sanitize';
+
+const formatIsoDate = (iso?: string): string | null => {
+  if (!iso) return null;
+  const date = new Date(iso + 'T00:00:00');
+  return isNaN(date.getTime()) ? null : date.toLocaleDateString();
+};
 
 interface BookDetailProps {
   book: Book;
@@ -129,9 +135,19 @@ export const BookDetail: React.FC<BookDetailProps> = ({ book, onBack, onEdit, on
           </div>
 
           <div className="flex-1">
-            <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold tracking-wider uppercase mb-4 border bg-stone-100 text-stone-700 border-stone-300`}>
-              {type}
-            </span>
+            <div className="flex items-center gap-2 mb-4 flex-wrap">
+              <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold tracking-wider uppercase border bg-stone-100 text-stone-700 border-stone-300`}>
+                {type}
+              </span>
+              <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold tracking-wider uppercase border ${getBookStatus(book) === 'Terminado'
+                ? 'bg-stone-100 text-stone-500 border-stone-200'
+                : getBookStatus(book) === 'Leyendo'
+                  ? 'bg-amber-50 text-amber-700 border-amber-300'
+                  : 'bg-white text-stone-500 border-stone-300'
+                }`}>
+                {getBookStatus(book)}
+              </span>
+            </div>
             <h1 className="text-3xl md:text-5xl font-serif font-bold mb-3 text-stone-800 leading-tight break-words">{general.title}</h1>
             <p className="text-xl text-stone-500 font-medium mb-6 border-b border-stone-200 pb-4 inline-block break-words">{general.author}</p>
 
@@ -140,6 +156,18 @@ export const BookDetail: React.FC<BookDetailProps> = ({ book, onBack, onEdit, on
                 <Calendar size={16} className="text-stone-500" />
                 <span className="text-stone-600">Añadido: {new Date(book.createdAt).toLocaleDateString()}</span>
               </div>
+              {(formatIsoDate(general.startDate) || formatIsoDate(general.endDate)) && (
+                <div className="flex items-center gap-2 bg-stone-100 px-3 py-1.5 rounded-full border border-stone-200">
+                  <CalendarRange size={16} className="text-stone-500" />
+                  <span className="text-stone-600">
+                    {formatIsoDate(general.startDate) && formatIsoDate(general.endDate)
+                      ? `Lectura: ${formatIsoDate(general.startDate)} – ${formatIsoDate(general.endDate)}`
+                      : formatIsoDate(general.startDate)
+                        ? `Lectura desde: ${formatIsoDate(general.startDate)}`
+                        : `Terminado el: ${formatIsoDate(general.endDate)}`}
+                  </span>
+                </div>
+              )}
               {general.rating > 0 && (
                 <div className="flex items-center gap-2 bg-stone-100 px-3 py-1.5 rounded-full border border-stone-200 text-amber-500">
                   <span className="text-stone-500 mr-1 text-xs uppercase font-bold">Valoración:</span>
