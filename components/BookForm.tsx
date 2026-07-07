@@ -152,6 +152,30 @@ const migrateEssayData = (data: EssayAnalysis): EssayAnalysis => {
   return { ...data, mainQuote: data.mainQuote || '', otherQuotes: data.otherQuotes || '', relatedResources: data.relatedResources || '' };
 };
 
+const DRAFT_KEY_PREFIX = 'bibliotheca_draft_';
+
+interface FormDraft {
+  type: BookType;
+  general: GeneralData;
+  novelData: NovelAnalysis;
+  essayData: EssayAnalysis;
+  savedAt: number;
+}
+
+const readDraft = (key: string): FormDraft | null => {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed && parsed.general && parsed.novelData && parsed.essayData && parsed.type) {
+      return parsed as FormDraft;
+    }
+  } catch (e) {
+    console.error('Error leyendo borrador:', e);
+  }
+  return null;
+};
+
 export const BookForm: React.FC<BookFormProps> = ({ initialBook, onSave, onCancel }) => {
   const [activeTab, setActiveTab] = useState<'general' | 'analysis' | 'conclusion'>('general');
   const [type, setType] = useState<BookType>(initialBook?.type || 'Novela');
@@ -164,6 +188,54 @@ export const BookForm: React.FC<BookFormProps> = ({ initialBook, onSave, onCance
   );
 
   const [loadingCover, setLoadingCover] = useState(false);
+
+  // Borrador: clave por libro (o 'new' para altas) y snapshot del estado inicial
+  const draftKey = DRAFT_KEY_PREFIX + (initialBook?.id || 'new');
+  const [pendingDraft, setPendingDraft] = useState<FormDraft | null>(() => readDraft(draftKey));
+
+  const initialSnapshotRef = useRef<string | null>(null);
+  if (initialSnapshotRef.current === null) {
+    initialSnapshotRef.current = JSON.stringify({ type, general, novelData, essayData });
+  }
+
+  const isDirty = () =>
+    JSON.stringify({ type, general, novelData, essayData }) !== initialSnapshotRef.current;
+
+  const clearDraft = () => {
+    try {
+      localStorage.removeItem(draftKey);
+    } catch (e) {
+      console.error('Error borrando borrador:', e);
+    }
+  };
+
+  // Autoguardado del borrador (con pequeño debounce) mientras haya cambios sin guardar
+  useEffect(() => {
+    if (!isDirty()) return;
+    const timer = setTimeout(() => {
+      try {
+        const draft: FormDraft = { type, general, novelData, essayData, savedAt: Date.now() };
+        localStorage.setItem(draftKey, JSON.stringify(draft));
+      } catch (e) {
+        console.error('Error guardando borrador:', e);
+      }
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [type, general, novelData, essayData]);
+
+  const handleRestoreDraft = () => {
+    if (!pendingDraft) return;
+    setType(pendingDraft.type);
+    setGeneral({ ...emptyGeneral, ...pendingDraft.general });
+    setNovelData(migrateNovelData({ ...emptyNovel, ...pendingDraft.novelData }));
+    setEssayData(migrateEssayData({ ...emptyEssay, ...pendingDraft.essayData }));
+    setPendingDraft(null);
+  };
+
+  const handleDiscardDraft = () => {
+    clearDraft();
+    setPendingDraft(null);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -182,7 +254,25 @@ export const BookForm: React.FC<BookFormProps> = ({ initialBook, onSave, onCance
       createdAt: initialBook?.createdAt || Date.now(),
     };
 
+    clearDraft();
     onSave(newBook);
+  };
+
+  const handleCancel = () => {
+    if (isDirty()) {
+      if (!confirm('Tienes cambios sin guardar. ¿Seguro que quieres salir y descartarlos?')) {
+        return;
+      }
+      clearDraft();
+    }
+    onCancel();
+  };
+
+  // Evita que Enter en un campo de texto envíe el formulario (guardado accidental)
+  const handleFormKeyDown = (e: React.KeyboardEvent<HTMLFormElement>) => {
+    if (e.key === 'Enter' && (e.target as HTMLElement).tagName === 'INPUT') {
+      e.preventDefault();
+    }
   };
 
   const handleSearchCover = async () => {
@@ -208,9 +298,9 @@ export const BookForm: React.FC<BookFormProps> = ({ initialBook, onSave, onCance
   const badgeClasses = "bg-white border border-stone-200 text-stone-700 px-2 py-0.5 rounded text-sm shadow-sm";
 
   return (
-    <form onSubmit={handleSubmit} className="max-w-4xl mx-auto space-y-6 pb-20 animate-fade-in">
+    <form onSubmit={handleSubmit} onKeyDown={handleFormKeyDown} className="max-w-4xl mx-auto space-y-6 pb-20 animate-fade-in">
       <div className="flex items-center justify-between sticky top-0 bg-stone-100/95 backdrop-blur-md z-10 p-4 border-b border-stone-200 rounded-b-xl shadow-sm">
-        <button type="button" onClick={onCancel} className="text-stone-600 hover:text-stone-800 flex items-center gap-2 transition-colors">
+        <button type="button" onClick={handleCancel} className="text-stone-600 hover:text-stone-800 flex items-center gap-2 transition-colors">
           <ArrowLeft size={20} /> <span className="hidden sm:inline">Cancelar</span>
         </button>
 
@@ -246,6 +336,31 @@ export const BookForm: React.FC<BookFormProps> = ({ initialBook, onSave, onCance
           <Save size={18} /> <span className="hidden sm:inline">Guardar</span>
         </button>
       </div>
+
+      {/* Draft recovery banner */}
+      {pendingDraft && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
+          <p className="text-sm text-amber-800">
+            Hay un borrador sin guardar de esta ficha ({new Date(pendingDraft.savedAt).toLocaleString()}). ¿Quieres recuperarlo?
+          </p>
+          <div className="flex gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={handleRestoreDraft}
+              className="bg-amber-600 text-white px-4 py-1.5 rounded-lg text-sm font-medium hover:bg-amber-700 transition-colors"
+            >
+              Recuperar
+            </button>
+            <button
+              type="button"
+              onClick={handleDiscardDraft}
+              className="bg-white border border-amber-300 text-amber-700 px-4 py-1.5 rounded-lg text-sm font-medium hover:bg-amber-100 transition-colors"
+            >
+              Descartar
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-stone-200 min-h-[600px] flex flex-col">
 
@@ -680,8 +795,12 @@ export const BookForm: React.FC<BookFormProps> = ({ initialBook, onSave, onCance
             <div></div>
           )}
 
+          {/* Las 'key' fuerzan nodos DOM distintos: si React reutilizara el mismo <button>
+              y cambiara type de "button" a "submit" durante el clic, el navegador
+              enviaría el formulario al pulsar "Siguiente" en la pestaña Análisis. */}
           {activeTab !== 'conclusion' ? (
             <button
+              key="next-step"
               type="button"
               onClick={() => setActiveTab(activeTab === 'general' ? 'analysis' : 'conclusion')}
               className="flex items-center gap-2 text-stone-800 font-medium hover:opacity-80"
@@ -690,6 +809,7 @@ export const BookForm: React.FC<BookFormProps> = ({ initialBook, onSave, onCance
             </button>
           ) : (
             <button
+              key="submit-book"
               type="submit"
               className="bg-stone-800 text-white px-8 py-2 rounded-full hover:bg-stone-700 transition-colors flex items-center gap-2 font-medium shadow-lg"
             >
