@@ -1,12 +1,13 @@
 import React, { useState, useMemo } from 'react';
 import { Book, BookType } from '../types';
 import { BookOpen, ScrollText, Star, Plus, Download, Upload, Search, Filter, X } from 'lucide-react';
+import { parseImportedBooks } from '../services/importService';
 
 interface BookListProps {
   books: Book[];
   onAddBook: () => void;
   onSelectBook: (book: Book) => void;
-  onImportBooks: (books: Book[]) => void;
+  onImportBooks: (books: Book[], mode: 'merge' | 'replace') => void;
 }
 
 export const BookList: React.FC<BookListProps> = ({ books, onAddBook, onSelectBook, onImportBooks }) => {
@@ -50,10 +51,43 @@ export const BookList: React.FC<BookListProps> = ({ books, onAddBook, onSelectBo
       reader.onload = (event) => {
         try {
           const json = JSON.parse(event.target?.result as string);
-          if (Array.isArray(json)) {
-            onImportBooks(json);
-          } else {
+          const result = parseImportedBooks(json);
+          if (!result) {
             alert("El archivo no tiene el formato correcto (debe ser una lista de libros).");
+            return;
+          }
+          if (result.books.length === 0) {
+            alert("El archivo no contiene ningún libro válido. No se ha importado nada.");
+            return;
+          }
+
+          const summary =
+            `Se han leído ${result.books.length} libros válidos del archivo` +
+            (result.discarded > 0 ? ` (${result.discarded} entradas descartadas por formato inválido)` : '') +
+            '.';
+
+          if (books.length === 0) {
+            onImportBooks(result.books, 'replace');
+            alert(`${summary}\n\nImportación completada.`);
+            return;
+          }
+
+          const merge = confirm(
+            `${summary}\n\n¿Quieres COMBINARLOS con tu biblioteca actual (${books.length} lecturas)?\n\n` +
+            `· Aceptar: combinar (los libros con el mismo ID se actualizarán).\n` +
+            `· Cancelar: podrás elegir reemplazar toda la biblioteca.`
+          );
+          if (merge) {
+            onImportBooks(result.books, 'merge');
+            return;
+          }
+
+          const replace = confirm(
+            `¿REEMPLAZAR toda tu biblioteca (${books.length} lecturas) por los ${result.books.length} libros del archivo?\n\n` +
+            `Esta acción no se puede deshacer.`
+          );
+          if (replace) {
+            onImportBooks(result.books, 'replace');
           }
         } catch (err) {
           console.error(err);

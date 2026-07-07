@@ -1,11 +1,13 @@
 import React from 'react';
 import { Book } from '../types';
-import { ArrowLeft, Edit2, Calendar, Book as BookIcon, Target, Quote, Lightbulb, Users, Heart, History, Map, Link2 } from 'lucide-react';
+import { ArrowLeft, Edit2, Trash2, Calendar, Book as BookIcon, Target, Quote, Lightbulb, Users, Heart, History, Map, Link2 } from 'lucide-react';
+import { sanitizeHtml } from '../services/sanitize';
 
 interface BookDetailProps {
   book: Book;
   onBack: () => void;
   onEdit: () => void;
+  onDelete: (id: string) => void;
 }
 
 interface SectionProps {
@@ -20,7 +22,7 @@ const HtmlContent: React.FC<{ html: string }> = ({ html }) => {
   return (
     <div
       className="text-stone-600 leading-relaxed break-words [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:mb-2 [&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:mb-2 [&_li]:mb-1 [&_strong]:font-bold [&_b]:font-bold [&_em]:italic [&_i]:italic"
-      dangerouslySetInnerHTML={{ __html: html }}
+      dangerouslySetInnerHTML={{ __html: sanitizeHtml(html) }}
     />
   );
 };
@@ -85,10 +87,16 @@ const hasActionPlan = (essayAnalysis: Book['essayAnalysis']): boolean => {
   return !!(essayAnalysis.mindsetShift || essayAnalysis.actionPlan);
 };
 
-export const BookDetail: React.FC<BookDetailProps> = ({ book, onBack, onEdit }) => {
+export const BookDetail: React.FC<BookDetailProps> = ({ book, onBack, onEdit, onDelete }) => {
   const { general, novelAnalysis, essayAnalysis, type } = book;
   const mainQuote = getMainQuote(book);
   const otherQuotes = getOtherQuotes(book);
+
+  const handleDelete = () => {
+    if (confirm(`¿Eliminar "${general.title}" de tu biblioteca?\n\nEsta acción no se puede deshacer.`)) {
+      onDelete(book.id);
+    }
+  };
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-20 animate-fade-in">
@@ -97,9 +105,14 @@ export const BookDetail: React.FC<BookDetailProps> = ({ book, onBack, onEdit }) 
         <button onClick={onBack} className="text-stone-600 hover:text-stone-800 flex items-center gap-2 transition-colors">
           <ArrowLeft size={20} /> <span className="font-medium">Volver</span>
         </button>
-        <button onClick={onEdit} className="text-stone-700 hover:text-stone-900 flex items-center gap-2 transition-colors bg-white px-4 py-2 rounded-full border border-stone-200 shadow-sm hover:shadow">
-          <Edit2 size={16} /> <span className="text-sm font-medium">Editar</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={handleDelete} className="text-red-600 hover:text-red-700 flex items-center gap-2 transition-colors bg-white px-4 py-2 rounded-full border border-red-200 shadow-sm hover:shadow hover:bg-red-50">
+            <Trash2 size={16} /> <span className="text-sm font-medium hidden sm:inline">Eliminar</span>
+          </button>
+          <button onClick={onEdit} className="text-stone-700 hover:text-stone-900 flex items-center gap-2 transition-colors bg-white px-4 py-2 rounded-full border border-stone-200 shadow-sm hover:shadow">
+            <Edit2 size={16} /> <span className="text-sm font-medium">Editar</span>
+          </button>
+        </div>
       </div>
 
       {/* Header Card */}
