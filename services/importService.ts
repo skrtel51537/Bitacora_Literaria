@@ -1,4 +1,4 @@
-import { Book, BookType, BookFormat, GeneralData, NovelAnalysis, EssayAnalysis } from '../types';
+import { Book, BookType, BookFormat, ReadingStatus, GeneralData, NovelAnalysis, EssayAnalysis } from '../types';
 import { sanitizeHtml } from './sanitize';
 
 export interface ImportResult {
@@ -23,13 +23,21 @@ const plainStr = (v: unknown): string => {
   return (div.textContent || '').trim();
 };
 
+const VALID_STATUSES: ReadingStatus[] = ['Por leer', 'Leyendo', 'Terminado'];
+
+const isoDate = (v: unknown): string | undefined => {
+  if (typeof v !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return undefined;
+  return isNaN(new Date(v + 'T00:00:00').getTime()) ? undefined : v;
+};
+
 const parseGeneral = (raw: any): GeneralData | null => {
   if (!raw || typeof raw !== 'object') return null;
   const title = plainStr(raw.title);
   if (!title) return null;
   const rating = typeof raw.rating === 'number' ? Math.max(0, Math.min(5, Math.round(raw.rating))) : 0;
   const format: BookFormat = raw.format === 'Digital' ? 'Digital' : 'Físico';
-  const coverUrl = typeof raw.coverUrl === 'string' && /^https?:\/\//.test(raw.coverUrl) ? raw.coverUrl : '';
+  // Aceptamos URLs http(s) y portadas locales embebidas como data:image
+  const coverUrl = typeof raw.coverUrl === 'string' && /^(https?:\/\/|data:image\/)/.test(raw.coverUrl) ? raw.coverUrl : '';
   return {
     title,
     author: plainStr(raw.author),
@@ -37,6 +45,9 @@ const parseGeneral = (raw: any): GeneralData | null => {
     format,
     motivation: str(raw.motivation),
     coverUrl,
+    status: VALID_STATUSES.includes(raw.status) ? (raw.status as ReadingStatus) : undefined,
+    startDate: isoDate(raw.startDate),
+    endDate: isoDate(raw.endDate),
   };
 };
 

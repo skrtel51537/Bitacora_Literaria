@@ -38,4 +38,15 @@ App SPA sin backend: React 19 + Vite, persistencia en `localStorage`
   fijar `innerHTML` y despachar `new InputEvent('input', {bubbles:true})`.
 - Para clics confiables sobre un botón sin selector estable: asignarle un `id`
   temporal vía `preview_eval` y luego `preview_click('#id')`.
+- Para conducir la importación de backups (input file dinámico): sobrescribir
+  `HTMLInputElement.prototype.click` para capturar el input, asignarle un
+  `File` vía `DataTransfer` + `Object.defineProperty(input,'files',...)` y
+  llamar a `input.onchange({target: input})`. Sirve igual para la subida de
+  portada local del formulario.
+- Los helpers colgados de `window` se pierden en cada full-reload de HMR:
+  redefinirlos justo antes de usarlos.
+- Tras un click/change sintético, leer el DOM en un `setTimeout`, no en la
+  misma pila: la lectura síncrona puede ver el estado anterior al re-render.
+- Google Books (googleapis.com) puede devolver 429 por rate limit de IP:
+  si pasa, verificar el mensaje de error y dejar el happy path anotado.
 - Limpiar al terminar: `localStorage.clear()` en la preview.

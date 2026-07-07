@@ -1,7 +1,10 @@
 import React, { useState, useMemo } from 'react';
-import { Book, BookType } from '../types';
-import { BookOpen, ScrollText, Star, Plus, Download, Upload, Search, Filter, X } from 'lucide-react';
+import { Book, BookType, ReadingStatus, getBookStatus } from '../types';
+import { BookOpen, ScrollText, Star, Plus, Download, Upload, Search, Filter, X, BarChart3 } from 'lucide-react';
 import { parseImportedBooks } from '../services/importService';
+import { StatsPanel } from './StatsPanel';
+
+type SortOption = 'recent' | 'oldest' | 'title' | 'author' | 'rating';
 
 interface BookListProps {
   books: Book[];
@@ -14,20 +17,46 @@ export const BookList: React.FC<BookListProps> = ({ books, onAddBook, onSelectBo
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<'All' | BookType>('All');
   const [filterRating, setFilterRating] = useState<number | null>(null);
+  const [filterStatus, setFilterStatus] = useState<'All' | ReadingStatus>('All');
+  const [sortBy, setSortBy] = useState<SortOption>('recent');
+  const [showStats, setShowStats] = useState(false);
 
   const filteredBooks = useMemo(() => {
-    return books.filter(book => {
+    const filtered = books.filter(book => {
       const matchesSearch =
         book.general.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
         book.general.author.toLowerCase().includes(searchTerm.toLowerCase());
 
       const matchesType = filterType === 'All' || book.type === filterType;
 
-      const matchesRating = filterRating === null || book.general.rating === filterRating;
+      // Filtro "N estrellas o más"
+      const matchesRating = filterRating === null || book.general.rating >= filterRating;
 
-      return matchesSearch && matchesType && matchesRating;
+      const matchesStatus = filterStatus === 'All' || getBookStatus(book) === filterStatus;
+
+      return matchesSearch && matchesType && matchesRating && matchesStatus;
     });
-  }, [books, searchTerm, filterType, filterRating]);
+
+    const sorted = [...filtered];
+    switch (sortBy) {
+      case 'recent':
+        sorted.sort((a, b) => b.createdAt - a.createdAt);
+        break;
+      case 'oldest':
+        sorted.sort((a, b) => a.createdAt - b.createdAt);
+        break;
+      case 'title':
+        sorted.sort((a, b) => a.general.title.localeCompare(b.general.title, 'es'));
+        break;
+      case 'author':
+        sorted.sort((a, b) => a.general.author.localeCompare(b.general.author, 'es'));
+        break;
+      case 'rating':
+        sorted.sort((a, b) => b.general.rating - a.general.rating);
+        break;
+    }
+    return sorted;
+  }, [books, searchTerm, filterType, filterRating, filterStatus, sortBy]);
 
   const handleExport = () => {
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(books, null, 2));
@@ -153,7 +182,7 @@ export const BookList: React.FC<BookListProps> = ({ books, onAddBook, onSelectBo
 
         <div className="w-px h-8 bg-stone-200 hidden md:block"></div>
 
-        <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto pb-2 md:pb-0">
+        <div className="flex items-center gap-2 w-full md:w-auto flex-wrap">
           <div className="flex items-center gap-1 bg-stone-50 p-1 rounded-lg border border-stone-200">
             <button
               onClick={() => setFilterType('All')}
@@ -183,19 +212,54 @@ export const BookList: React.FC<BookListProps> = ({ books, onAddBook, onSelectBo
             >
               <Filter size={14} />
             </button>
-            {[5, 4, 3].map(score => (
+            {[5, 4, 3, 2, 1].map(score => (
               <button
                 key={score}
                 onClick={() => setFilterRating(filterRating === score ? null : score)}
                 className={`px-2 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center gap-1 ${filterRating === score ? 'bg-white text-amber-500 shadow-sm' : 'text-stone-400 hover:text-amber-500'}`}
-                title={`Filtrar ${score} estrellas`}
+                title={`${score} estrellas o más`}
               >
-                {score} <Star size={12} fill="currentColor" />
+                {score}{score < 5 ? '+' : ''} <Star size={12} fill="currentColor" />
               </button>
             ))}
           </div>
+
+          <select
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value as 'All' | ReadingStatus)}
+            className="bg-stone-50 border border-stone-200 rounded-lg px-3 py-2 text-sm font-medium text-stone-600 focus:outline-none focus:ring-2 focus:ring-stone-400"
+            title="Filtrar por estado de lectura"
+          >
+            <option value="All">Cualquier estado</option>
+            <option value="Por leer">Por leer</option>
+            <option value="Leyendo">Leyendo</option>
+            <option value="Terminado">Terminados</option>
+          </select>
+
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as SortOption)}
+            className="bg-stone-50 border border-stone-200 rounded-lg px-3 py-2 text-sm font-medium text-stone-600 focus:outline-none focus:ring-2 focus:ring-stone-400"
+            title="Ordenar la biblioteca"
+          >
+            <option value="recent">Más recientes</option>
+            <option value="oldest">Más antiguos</option>
+            <option value="title">Título A-Z</option>
+            <option value="author">Autor A-Z</option>
+            <option value="rating">Mejor puntuados</option>
+          </select>
+
+          <button
+            onClick={() => setShowStats(!showStats)}
+            className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 border ${showStats ? 'bg-stone-700 text-white border-stone-700' : 'bg-stone-50 text-stone-600 border-stone-200 hover:bg-stone-100'}`}
+            title="Mostrar estadísticas"
+          >
+            <BarChart3 size={16} /> <span className="hidden lg:inline">Estadísticas</span>
+          </button>
         </div>
       </div>
+
+      {showStats && <StatsPanel books={books} />}
 
       {
         books.length === 0 ? (
@@ -226,6 +290,17 @@ export const BookList: React.FC<BookListProps> = ({ books, onAddBook, onSelectBo
               >
                 {/* Image Container */}
                 <div className="h-64 bg-stone-50 relative p-4 flex items-end justify-center overflow-hidden border-b border-stone-100">
+                  {/* Status Badge (solo si no está terminado) */}
+                  {getBookStatus(book) !== 'Terminado' && (
+                    <div className="absolute top-3 left-3 z-10">
+                      <span className={`px-2 py-1 rounded-md text-xs font-bold uppercase tracking-wider shadow-sm border ${getBookStatus(book) === 'Leyendo'
+                        ? 'bg-amber-50/95 border-amber-300 text-amber-700'
+                        : 'bg-white/90 border-stone-300 text-stone-500'
+                        }`}>
+                        {getBookStatus(book)}
+                      </span>
+                    </div>
+                  )}
                   {/* Type Badge */}
                   <div className="absolute top-3 right-3 z-10">
                     <span className={`px-2 py-1 rounded-md text-xs font-bold uppercase tracking-wider shadow-sm border ${book.type === 'Novela' ? 'bg-white/90 border-stone-300 text-stone-700' : 'bg-white/90 border-stone-300 text-stone-600'

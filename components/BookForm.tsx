@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Book, BookType, BookFormat, GeneralData, NovelAnalysis, EssayAnalysis } from '../types';
-import { Save, ArrowLeft, BookOpen, ScrollText, Image as ImageIcon, Search, Loader2, Bold, Italic, List as ListIcon, ChevronRight, ChevronLeft } from 'lucide-react';
-import { searchBookCover } from '../services/bookService';
+import { Book, BookType, BookFormat, ReadingStatus, GeneralData, NovelAnalysis, EssayAnalysis } from '../types';
+import { Save, ArrowLeft, BookOpen, ScrollText, Image as ImageIcon, Search, Loader2, Bold, Italic, List as ListIcon, ChevronRight, ChevronLeft, Upload } from 'lucide-react';
+import { searchBookData } from '../services/bookService';
 
 interface BookFormProps {
   initialBook?: Book;
@@ -23,6 +23,9 @@ const emptyGeneral: GeneralData = {
   format: 'Físico',
   motivation: '',
   coverUrl: '',
+  status: 'Terminado',
+  startDate: '',
+  endDate: '',
 };
 
 const emptyNovel: NovelAnalysis = {
@@ -279,17 +282,57 @@ export const BookForm: React.FC<BookFormProps> = ({ initialBook, onSave, onCance
     if (!general.title) return;
     setLoadingCover(true);
     try {
-      const url = await searchBookCover(general.title, general.author);
-      if (url) {
-        setGeneral(prev => ({ ...prev, coverUrl: url }));
+      const result = await searchBookData(general.title, general.author);
+      if (result && (result.coverUrl || result.author)) {
+        setGeneral(prev => ({
+          ...prev,
+          coverUrl: result.coverUrl || prev.coverUrl,
+          // Solo autocompletamos el autor si el campo está vacío
+          author: prev.author.trim() ? prev.author : (result.author || prev.author),
+        }));
+        if (!result.coverUrl) {
+          alert("No se encontró portada, pero sí el autor del libro.");
+        }
       } else {
-        alert("No se encontró ninguna portada automática.");
+        alert("No se encontró el libro en Google Books.");
       }
     } catch (err) {
       console.error(err);
+      alert("No se pudo consultar Google Books en este momento. Inténtalo de nuevo en unos minutos.");
     } finally {
       setLoadingCover(false);
     }
+  };
+
+  // Sube una imagen local como portada, reducida para no saturar localStorage
+  const handleUploadCover = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        const img = new Image();
+        img.onload = () => {
+          const MAX_HEIGHT = 600;
+          const scale = Math.min(1, MAX_HEIGHT / img.height);
+          const canvas = document.createElement('canvas');
+          canvas.width = Math.round(img.width * scale);
+          canvas.height = Math.round(img.height * scale);
+          const ctx = canvas.getContext('2d');
+          if (!ctx) return;
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+          setGeneral(prev => ({ ...prev, coverUrl: dataUrl }));
+        };
+        img.onerror = () => alert("No se pudo leer la imagen seleccionada.");
+        img.src = reader.result as string;
+      };
+      reader.readAsDataURL(file);
+    };
+    input.click();
   };
 
   const inputBaseClasses = "w-full px-4 py-2 rounded-lg border border-stone-200 focus:ring-2 focus:ring-stone-400 focus:outline-none bg-white text-stone-800 placeholder:text-stone-400 transition-shadow shadow-sm";
@@ -439,6 +482,40 @@ export const BookForm: React.FC<BookFormProps> = ({ initialBook, onSave, onCance
                     ))}
                   </div>
                 </div>
+
+                <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div>
+                    <label className={labelClasses}>Estado</label>
+                    <select
+                      className={inputBaseClasses}
+                      value={general.status || 'Terminado'}
+                      onChange={e => setGeneral({ ...general, status: e.target.value as ReadingStatus })}
+                    >
+                      <option value="Por leer">Por leer</option>
+                      <option value="Leyendo">Leyendo</option>
+                      <option value="Terminado">Terminado</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className={labelClasses}>Inicio de lectura</label>
+                    <input
+                      type="date"
+                      className={inputBaseClasses}
+                      value={general.startDate || ''}
+                      onChange={e => setGeneral({ ...general, startDate: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <label className={labelClasses}>Fin de lectura</label>
+                    <input
+                      type="date"
+                      className={inputBaseClasses}
+                      value={general.endDate || ''}
+                      min={general.startDate || undefined}
+                      onChange={e => setGeneral({ ...general, endDate: e.target.value })}
+                    />
+                  </div>
+                </div>
               </div>
 
               <div className="w-full md:w-48 flex flex-col gap-3">
@@ -469,7 +546,15 @@ export const BookForm: React.FC<BookFormProps> = ({ initialBook, onSave, onCance
                   className="w-full bg-white border border-stone-300 text-stone-700 py-1.5 px-3 rounded text-sm font-medium hover:bg-stone-50 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {loadingCover ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} />}
-                  Buscar Carátula
+                  Buscar en Google Books
+                </button>
+                <button
+                  type="button"
+                  onClick={handleUploadCover}
+                  className="w-full bg-white border border-stone-300 text-stone-700 py-1.5 px-3 rounded text-sm font-medium hover:bg-stone-50 transition-colors flex items-center justify-center gap-2"
+                >
+                  <Upload size={14} />
+                  Subir Imagen
                 </button>
               </div>
             </div>

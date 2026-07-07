@@ -1,5 +1,6 @@
 export type BookFormat = 'Físico' | 'Digital';
 export type BookType = 'Novela' | 'Ensayo';
+export type ReadingStatus = 'Por leer' | 'Leyendo' | 'Terminado';
 
 export interface GeneralData {
   title: string;
@@ -8,6 +9,9 @@ export interface GeneralData {
   format: BookFormat;
   motivation: string; // ¿Por qué leí este libro?
   coverUrl?: string;
+  status?: ReadingStatus; // Los libros antiguos no tienen el campo: se tratan como 'Terminado'
+  startDate?: string; // ISO yyyy-mm-dd
+  endDate?: string; // ISO yyyy-mm-dd
 }
 
 // Plantilla Novela
@@ -51,3 +55,6 @@ export interface Book {
   essayAnalysis?: EssayAnalysis;
   createdAt: number;
 }
+
+// Los libros guardados antes de existir el campo status se consideran terminados
+export const getBookStatus = (book: Book): ReadingStatus => book.general.status || 'Terminado';
