@@ -3,6 +3,7 @@ import { Book, BookType, ReadingStatus, getBookStatus } from '../types';
 import { BookOpen, ScrollText, Star, Plus, Download, Upload, Search, Filter, X, BarChart3 } from 'lucide-react';
 import { parseImportedBooks } from '../services/importService';
 import { StatsPanel } from './StatsPanel';
+import { useFeedback } from './ui/Feedback';
 
 type SortOption = 'recent' | 'oldest' | 'title' | 'author' | 'rating';
 
@@ -14,6 +15,7 @@ interface BookListProps {
 }
 
 export const BookList: React.FC<BookListProps> = ({ books, onAddBook, onSelectBook, onImportBooks }) => {
+  const { toast, confirmDialog } = useFeedback();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<'All' | BookType>('All');
   const [filterRating, setFilterRating] = useState<number | null>(null);
@@ -77,16 +79,16 @@ export const BookList: React.FC<BookListProps> = ({ books, onAddBook, onSelectBo
       if (!file) return;
 
       const reader = new FileReader();
-      reader.onload = (event) => {
+      reader.onload = async (event) => {
         try {
           const json = JSON.parse(event.target?.result as string);
           const result = parseImportedBooks(json);
           if (!result) {
-            alert("El archivo no tiene el formato correcto (debe ser una lista de libros).");
+            toast('El archivo no tiene el formato correcto (debe ser una lista de libros).', 'error');
             return;
           }
           if (result.books.length === 0) {
-            alert("El archivo no contiene ningún libro válido. No se ha importado nada.");
+            toast('El archivo no contiene ningún libro válido. No se ha importado nada.', 'error');
             return;
           }
 
@@ -97,30 +99,39 @@ export const BookList: React.FC<BookListProps> = ({ books, onAddBook, onSelectBo
 
           if (books.length === 0) {
             onImportBooks(result.books, 'replace');
-            alert(`${summary}\n\nImportación completada.`);
+            toast(`${summary}\nImportación completada.`, 'success');
             return;
           }
 
-          const merge = confirm(
-            `${summary}\n\n¿Quieres COMBINARLOS con tu biblioteca actual (${books.length} lecturas)?\n\n` +
-            `· Aceptar: combinar (los libros con el mismo ID se actualizarán).\n` +
-            `· Cancelar: podrás elegir reemplazar toda la biblioteca.`
-          );
+          const merge = await confirmDialog({
+            title: 'Importar biblioteca',
+            message:
+              `${summary}\n¿Quieres combinarlos con tu biblioteca actual (${books.length} lecturas)? ` +
+              `Los libros con el mismo ID se actualizarán.`,
+            confirmLabel: 'Combinar',
+            cancelLabel: 'Más opciones…',
+          });
           if (merge) {
             onImportBooks(result.books, 'merge');
+            toast('Bibliotecas combinadas.', 'success');
             return;
           }
 
-          const replace = confirm(
-            `¿REEMPLAZAR toda tu biblioteca (${books.length} lecturas) por los ${result.books.length} libros del archivo?\n\n` +
-            `Esta acción no se puede deshacer.`
-          );
+          const replace = await confirmDialog({
+            title: 'Reemplazar biblioteca',
+            message:
+              `¿Reemplazar toda tu biblioteca (${books.length} lecturas) por los ${result.books.length} libros del archivo?\n` +
+              `Esta acción no se puede deshacer.`,
+            confirmLabel: 'Reemplazar todo',
+            danger: true,
+          });
           if (replace) {
             onImportBooks(result.books, 'replace');
+            toast('Biblioteca reemplazada.', 'success');
           }
         } catch (err) {
           console.error(err);
-          alert("Error al leer el archivo JSON.");
+          toast('Error al leer el archivo JSON.', 'error');
         }
       };
       reader.readAsText(file);

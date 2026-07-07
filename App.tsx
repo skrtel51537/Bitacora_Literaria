@@ -2,10 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { BookList } from './components/BookList';
 import { BookForm } from './components/BookForm';
 import { BookDetail } from './components/BookDetail';
+import { FeedbackProvider } from './components/ui/Feedback';
 import { Book } from './types';
-import { Library } from 'lucide-react';
+import { Library, Moon, Sun } from 'lucide-react';
 
 const LOCAL_STORAGE_KEY = 'bibliotheca_books_v2';
+const THEME_KEY = 'bitacora_theme';
 
 export default function App() {
   // Inicialización de estado directa y segura
@@ -23,6 +25,20 @@ export default function App() {
 
   const [view, setView] = useState<'list' | 'form' | 'detail'>('list');
   const [selectedBook, setSelectedBook] = useState<Book | undefined>(undefined);
+
+  // El script inline de index.html ya aplicó la clase .dark antes del render
+  const [darkMode, setDarkMode] = useState(() => document.documentElement.classList.contains('dark'));
+
+  const toggleTheme = () => {
+    const next = !darkMode;
+    setDarkMode(next);
+    document.documentElement.classList.toggle('dark', next);
+    try {
+      localStorage.setItem(THEME_KEY, next ? 'dark' : 'light');
+    } catch (e) {
+      console.error('Error guardando el tema:', e);
+    }
+  };
 
   // Persistencia: Guardar siempre que 'books' cambie
   useEffect(() => {
@@ -97,6 +113,7 @@ export default function App() {
   };
 
   return (
+    <FeedbackProvider>
     <div className="min-h-screen font-sans bg-stone-100 text-stone-800">
       <nav className="border-b sticky top-0 z-50 bg-white/95 border-stone-200 backdrop-blur-sm">
         <div className="max-w-7xl mx-auto px-4 md:px-8 h-16 flex items-center justify-between">
@@ -116,6 +133,13 @@ export default function App() {
             <div className="text-sm font-semibold px-4 py-1.5 rounded-full bg-white text-stone-600 border border-stone-200">
               {books.length} {books.length === 1 ? 'lectura' : 'lecturas'}
             </div>
+            <button
+              onClick={toggleTheme}
+              className="p-2 rounded-full bg-white text-stone-600 border border-stone-200 hover:bg-stone-50 transition-colors"
+              title={darkMode ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+            >
+              {darkMode ? <Sun size={18} /> : <Moon size={18} />}
+            </button>
           </div>
         </div>
       </nav>
@@ -151,5 +175,6 @@ export default function App() {
         )}
       </main>
     </div>
+    </FeedbackProvider>
   );
 }
