@@ -74,12 +74,26 @@ export default function App() {
     }
   };
 
-  const handleImportBooks = (newBooks: Book[]) => {
-    if (confirm(`¿Estás seguro de importar ${newBooks.length} libros? Esto sobrescribirá tu biblioteca actual (se mantendrán aquellos con ID diferente si combinamos, pero por seguridad reemplazaremos todo para evitar duplicados corruptos).`)) {
-      setBooks(newBooks);
-      // Force view refresh
-      setView('list');
-    }
+  const handleImportBooks = (newBooks: Book[], mode: 'merge' | 'replace') => {
+    setBooks(prevBooks => {
+      if (mode === 'replace') {
+        return newBooks;
+      }
+      // Combinar: los libros importados con el mismo ID actualizan al existente,
+      // el resto se añade al final conservando el orden actual
+      const merged = new Map(prevBooks.map(b => [b.id, b]));
+      for (const book of newBooks) {
+        merged.set(book.id, book);
+      }
+      return [...merged.values()];
+    });
+    setView('list');
+  };
+
+  const handleDeleteBook = (id: string) => {
+    setBooks(prevBooks => prevBooks.filter(b => b.id !== id));
+    setSelectedBook(undefined);
+    setView('list');
   };
 
   return (
@@ -132,6 +146,7 @@ export default function App() {
               setSelectedBook(undefined);
             }}
             onEdit={handleEditBook}
+            onDelete={handleDeleteBook}
           />
         )}
       </main>
